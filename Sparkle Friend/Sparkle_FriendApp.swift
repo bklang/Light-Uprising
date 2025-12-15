@@ -2,31 +2,19 @@
 //  Sparkle_FriendApp.swift
 //  Sparkle Friend
 //
-//  Created by Ben Klang on 12/13/25.
+//  BLE Light Controller App
 //
 
 import SwiftUI
-import SwiftData
 
 @main
 struct Sparkle_FriendApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @StateObject private var bluetoothManager = BluetoothManager()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(bluetoothManager)
         }
-        .modelContainer(sharedModelContainer)
     }
 }

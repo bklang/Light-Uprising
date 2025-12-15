@@ -2,65 +2,122 @@
 //  ContentView.swift
 //  Sparkle Friend
 //
-//  Created by Ben Klang on 12/13/25.
+//  BLE Device Discovery List
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @EnvironmentObject var bluetoothManager: BluetoothManager
+    @State private var selectedDevice: BLEDevice?
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+        NavigationStack {
+            ZStack {
+                if bluetoothManager.discoveredDevices.isEmpty {
+                    emptyStateView
+                } else {
+                    deviceListView
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .navigationTitle("Sparkle Lights")
+            .navigationDestination(item: $selectedDevice) { device in
+                DeviceControlView(device: device)
+            }
+            .alert("Bluetooth Required", isPresented: .constant(bluetoothManager.bluetoothState == .poweredOff)) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Please turn on Bluetooth to discover light devices.")
+            }
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    @ViewBuilder
+    private var deviceListView: some View {
+        List(bluetoothManager.discoveredDevices) { device in
+            Button {
+                selectedDevice = device
+            } label: {
+                DeviceRowView(device: device)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .refreshable {
+            // Pull to refresh - restart scanning
+            bluetoothManager.stopScanning()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            bluetoothManager.startScanning()
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    @ViewBuilder
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            if bluetoothManager.bluetoothState == .poweredOn {
+                // Scanning state
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .padding()
+
+                Text("Scanning for lights...")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+
+                Text("Make sure your lights are powered on")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            } else if bluetoothManager.bluetoothState == .unauthorized {
+                // Permission denied
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 50))
+                    .foregroundColor(.orange)
+                    .padding()
+
+                Text("Bluetooth Permission Required")
+                    .font(.headline)
+
+                Text("Please grant Bluetooth permission in Settings to discover light devices.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
+            } else {
+                // Bluetooth off or other state
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .font(.system(size: 50))
+                    .foregroundColor(.gray)
+                    .padding()
+
+                Text("Bluetooth Unavailable")
+                    .font(.headline)
+
+                Text("Please turn on Bluetooth to discover light devices.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .environmentObject(BluetoothManager())
 }
