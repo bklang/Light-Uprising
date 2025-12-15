@@ -4,64 +4,158 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Sparkle Friend is a multi-platform SwiftUI application that supports iOS (26.1+), macOS (15.7+), and visionOS (26.1+). The app uses SwiftData for persistent data storage with a simple list-based interface for managing timestamped items.
+Sparkle Friend is an iOS application for discovering and controlling Bluetooth Low Energy (BLE) light devices. The app scans for BLE lights advertising with a specific service UUID, displays them with their current color, and provides a full control interface for changing color, mode, brightness, and power state.
 
 ## Build and Test Commands
 
 ### Building the Application
 ```bash
-# Build for all platforms
-xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -configuration Debug build
+# Build for iOS Simulator
+xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15' build
 
-# Build for specific platform
-xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=macOS' build
-xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 16' build
+# Build for iOS Device (requires connected device)
+xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS,name=YOUR_DEVICE_NAME' build
+
+# Clean build
+xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" clean build
 ```
 
 ### Running Tests
 ```bash
-# Run all tests
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=macOS'
+# Run all tests on iOS Simulator
+xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15'
 
 # Run specific test target
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=macOS' -only-testing:Sparkle_FriendTests
+xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:Sparkle_FriendTests
 
 # Run UI tests
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=macOS' -only-testing:Sparkle_FriendUITests
-
-# Run a single test
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=macOS' -only-testing:Sparkle_FriendTests/Sparkle_FriendTests/testExample
+xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:Sparkle_FriendUITests
 ```
 
 ## Architecture
 
-### Data Layer
-- **SwiftData** is the persistence framework
-- `Item` model (`Item.swift`) is a `@Model` class with SwiftData that stores timestamped entries
-- `ModelContainer` is configured in `Sparkle_FriendApp.swift` with schema registration
-- Data is persisted to disk (not in-memory) by default
+### Core Components
 
-### Application Structure
-- **Sparkle_FriendApp.swift**: Main app entry point with `@main` attribute. Creates and manages the shared `ModelContainer` that provides SwiftData persistence across the app
-- **ContentView.swift**: Primary view using `NavigationSplitView` with master-detail layout. Uses `@Query` to reactively fetch items from SwiftData and `@Environment(\.modelContext)` to perform CRUD operations
-- **Item.swift**: SwiftData model representing a timestamped entry
+**BluetoothManager** (`Managers/BluetoothManager.swift`)
+- Central BLE management class conforming to `CBCentralManagerDelegate` and `CBPeripheralDelegate`
+- Handles scanning for BLE devices with service data UUID `c742e32d`
+- Parses 3-byte RGB color data from advertisement service data
+- Manages device connections, service/characteristic discovery, and BLE operations
+- Published properties: `discoveredDevices`, `bluetoothState`, `isScanning`, `connectedDevice`, `currentMode`, `connectionError`
+- Uses `DispatchQueue.main.async` for all UI updates to ensure thread safety
 
-### Platform-Specific UI
-The app uses conditional compilation for platform-specific UI:
-- `#if os(macOS)` blocks adjust navigation split view column width on macOS
-- `#if os(iOS)` blocks add iOS-specific toolbar items like EditButton
-- Supports iPhone, iPad, Mac, and Apple Vision Pro
+**BLEDevice Model** (`Models/BLEDevice.swift`)
+- Represents a discovered BLE light device
+- Properties: `id` (peripheral UUID), `name`, `currentColor`, `rssi` (signal strength), `lastSeen`, `peripheral` reference
+- Conforms to `Identifiable`, `Equatable`, and `Hashable` for SwiftUI integration
+- Devices are deduplicated by peripheral identifier
 
-### Key Patterns
-- SwiftData models use the `@Model` macro
-- Views access data through `@Query` property wrapper for reactive updates
-- Model operations use `modelContext.insert()` and `modelContext.delete()`
-- Animations wrap data mutations with `withAnimation {}`
-- The `.modelContainer()` modifier injects the model container into the view hierarchy
+**Color Extensions** (`Extensions/Color+BLE.swift`)
+- `Color.fromServiceData(_:)` - Creates SwiftUI Color from 3-byte RGB data
+- `color.toRGBBytes()` - Converts SwiftUI Color to RGB byte tuple for BLE transmission
+- Handles color space conversions between SwiftUI and BLE format
+
+### View Hierarchy
+
+```
+Sparkle_FriendApp
+  └─ ContentView (NavigationStack)
+       ├─ DeviceListView - Shows discovered devices
+       │    └─ DeviceRowView - Individual device row with color indicator and RSSI
+       └─ DeviceControlView - Full control interface (navigation destination)
+            ├─ ColorIndicatorView - Large color preview
+            ├─ ColorPicker - Change light color
+            ├─ Mode Picker - Select lighting mode
+            ├─ Brightness Slider - Adjust brightness (0-100%)
+            └─ Power Toggle - Turn light on/off
+```
+
+**ContentView.swift**
+- Main discovery screen with NavigationStack
+- Displays list of discovered BLE devices sorted by signal strength
+- Empty states for: scanning, Bluetooth off, unauthorized
+- Pull-to-refresh to restart scanning
+- Navigation to DeviceControlView on device selection
+
+**DeviceControlView.swift**
+- Connects to selected device on appear
+- Reads current mode from characteristic `0a93a285`
+- Provides controls for color, mode, brightness, and power
+- Shows connection status and handles disconnection
+- Auto-disconnects when view disappears
+
+**DeviceRowView.swift** & **ColorIndicatorView.swift**
+- Reusable UI components for device display
+- Color indicator shows circular preview of current light color
+- Device row includes name, color, and signal strength visualization
+
+### BLE Protocol Details
+
+**Service UUID**: `c742e32d`
+- Devices must advertise with service data for this UUID
+- Service data contains 3 bytes: [Red, Green, Blue] (0-255 each)
+- Extracted from C code: `serviceDataPayload[0-2]` = RGB bytes from packed color
+
+**Characteristics**:
+- **Mode Characteristic**: `0a93a285` (read/write)
+  - Single byte value representing light mode (0=Solid, 1=Fade, 2=Flash, etc.)
+  - Read on connection to display current mode
+  - Write to change mode
+- **Color/Brightness/Power**: Discovered dynamically after connection
+  - App searches for writable characteristics
+  - Writes appropriate data based on characteristic properties
+  - Uses `.writeWithoutResponse` or `.withResponse` based on characteristic
+
+**Device Discovery**:
+- Scans continuously with `allowDuplicates: true` to track RSSI changes
+- Filters advertisements to only show devices with service UUID `c742e32d`
+- Updates device list in real-time as devices are discovered
+- Removes stale devices (not seen for 30 seconds)
+- Sorted by signal strength (RSSI) for better UX
+
+### Thread Safety
+
+The app uses `DispatchQueue.main.async` extensively in CoreBluetooth delegate methods to ensure all `@Published` property updates happen on the main thread. This is required because:
+- CoreBluetooth delegates are called on background threads
+- SwiftUI `@Published` properties must be updated on the main thread
+- The project has strict concurrency features disabled for compatibility
 
 ## Project Configuration
+
+- **Platform**: iOS only (iPhone and iPad)
 - **Bundle ID**: net.dashblue.Sparkle-Friend
 - **Swift Version**: 5.0
-- **Deployment Targets**: iOS 26.1, macOS 15.7, visionOS 26.1
+- **Deployment Target**: iOS 17.0
+- **Development Team**: 73C2JK825V
 - **Code Signing**: Automatic
-- **Sandboxing**: App Sandbox enabled with readonly file access
+- **Sandboxing**: App Sandbox enabled
+- **Bluetooth Permission**: `NSBluetoothAlwaysUsageDescription` configured
+
+## Important Notes
+
+### BLE Scanning Limitations
+- iOS restricts background BLE scanning - app must be in foreground
+- Service UUID filter reduces power consumption
+- Scanning automatically resumes when app returns to foreground
+
+### Service UUID Format
+- Currently using short format: `C742E32D`
+- If devices don't appear, may need full UUID: `0000C742-E32D-1000-8000-00805F9B34FB`
+- Test with actual hardware to confirm correct format
+
+### Characteristic Discovery
+- Not all characteristics are known upfront (only mode characteristic)
+- App discovers all services and characteristics after connection
+- Looks for writable characteristics for color/brightness/power control
+- Check Xcode console logs for discovered characteristic UUIDs when connecting
+
+### Testing Without Hardware
+- Use BLE peripheral simulator apps on another iOS device
+- Advertise with service UUID `c742e32d` and 3-byte RGB service data
+- Implement characteristics for full testing of control features
+
+### Common Issues
+- **Devices not appearing**: Verify service UUID format matches hardware
+- **Can't control device**: Check characteristic UUIDs in console logs
+- **Bluetooth permission denied**: Check Info.plist has correct usage description
+- **Build errors**: Ensure iOS 17.0+ SDK is available
