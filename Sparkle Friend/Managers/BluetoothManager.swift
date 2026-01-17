@@ -17,6 +17,8 @@ class BluetoothManager: NSObject, ObservableObject {
     @Published var connectedDevice: BLEDevice?
     @Published var currentMode: UInt8?
     @Published var connectionError: String?
+    @Published var availableModes: [LightMode] = []
+    @Published var modeListError: String?
 
     // Private properties
     private var centralManager: CBCentralManager!
@@ -27,6 +29,7 @@ class BluetoothManager: NSObject, ObservableObject {
     // Service and characteristic UUIDs
     private let serviceUUID = CBUUID(string: "C742E32D")
     private let modeCharacteristicUUID = CBUUID(string: "0A93A285")
+    private let modeListCharacteristicUUID = CBUUID(string: "7F8A3C91")
 
     // Stale device cleanup interval (30 seconds)
     private let staleDeviceInterval: TimeInterval = 30
@@ -75,7 +78,42 @@ class BluetoothManager: NSObject, ObservableObject {
         connectedPeripheral = nil
         connectedDevice = nil
         currentMode = nil
+        availableModes = []
+        modeListError = nil
         characteristicCache.removeAll()
+    }
+
+    // MARK: - Mode List Parsing
+
+    private func parseModeList(from data: Data) -> [LightMode] {
+        // Convert to UTF-8 string
+        guard let modeString = String(data: data, encoding: .utf8) else {
+            print("ERROR: Failed to decode mode list as UTF-8")
+            return []
+        }
+
+        print("Mode list string: \(modeString)")
+
+        // Parse "index:name,index:name" format
+        let entries = modeString.split(separator: ",")
+        var modes: [LightMode] = []
+
+        for entry in entries {
+            let parts = entry.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2,
+                  let index = UInt8(parts[0].trimmingCharacters(in: .whitespaces)),
+                  !parts[1].isEmpty else {
+                print("WARNING: Skipping malformed entry: \(entry)")
+                continue
+            }
+
+            let name = parts[1].trimmingCharacters(in: .whitespaces)
+            modes.append(LightMode(index: index, name: name))
+        }
+
+        modes.sort { $0.index < $1.index }
+        print("Parsed \(modes.count) modes")
+        return modes
     }
 
     // MARK: - Device Control
@@ -321,6 +359,16 @@ extension BluetoothManager: CBPeripheralDelegate {
                 if characteristic.uuid == CBUUID(string: "0A93A285") {
                     peripheral.readValue(for: characteristic)
                 }
+
+                // If this is the mode list characteristic, read its value
+                if characteristic.uuid == self.modeListCharacteristicUUID {
+                    if characteristic.properties.contains(.read) {
+                        peripheral.readValue(for: characteristic)
+                    } else {
+                        print("WARNING: Mode list characteristic not readable")
+                        self.modeListError = "Mode list characteristic not readable"
+                    }
+                }
             }
         }
     }
@@ -342,6 +390,21 @@ extension BluetoothManager: CBPeripheralDelegate {
                 self.currentMode = modeValue
             }
             print("Current mode: \(modeValue)")
+        }
+
+        // Handle mode list characteristic read
+        if characteristic.uuid == modeListCharacteristicUUID,
+           let data = characteristic.value {
+            let modes = parseModeList(from: data)
+            DispatchQueue.main.async {
+                if modes.isEmpty {
+                    self.modeListError = "No valid modes parsed from device"
+                    self.availableModes = []
+                } else {
+                    self.availableModes = modes
+                    self.modeListError = nil
+                }
+            }
         }
     }
 

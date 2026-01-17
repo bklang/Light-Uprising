@@ -33,11 +33,6 @@ extension Color {
             red = components[0]
             green = components[1]
             blue = components[2]
-        } else if components.count >= 1 {
-            // Grayscale color
-            red = components[0]
-            green = components[0]
-            blue = components[0]
         } else {
             return (0, 0, 0)
         }

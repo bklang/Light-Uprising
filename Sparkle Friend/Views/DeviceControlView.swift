@@ -18,15 +18,6 @@ struct DeviceControlView: View {
     @State private var selectedMode: Int = 0
     @State private var isConnecting: Bool = true
 
-    // Mode options (common BLE light modes)
-    private let modeOptions = [
-        "Solid",
-        "Fade",
-        "Flash",
-        "Strobe",
-        "Rainbow"
-    ]
-
     init(device: BLEDevice) {
         self.device = device
         _selectedColor = State(initialValue: device.currentColor)
@@ -136,20 +127,50 @@ struct DeviceControlView: View {
             Text("Mode")
                 .font(.headline)
 
-            Picker("Mode", selection: $selectedMode) {
-                ForEach(0..<modeOptions.count, id: \.self) { index in
-                    Text(modeOptions[index]).tag(index)
-                }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: selectedMode) { oldValue, newValue in
-                sendModeUpdate(UInt8(newValue))
-            }
-
-            if let currentMode = bluetoothManager.currentMode {
-                Text("Device mode: \(currentMode < modeOptions.count ? modeOptions[Int(currentMode)] : "Mode \(currentMode)")")
+            if let error = bluetoothManager.modeListError {
+                // Error state
+                Text(error)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.red)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+            } else if bluetoothManager.availableModes.isEmpty {
+                // Loading state
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Loading modes...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            } else {
+                // Loaded state with dynamic modes
+                Picker("Mode", selection: $selectedMode) {
+                    ForEach(bluetoothManager.availableModes) { mode in
+                        Text(mode.name).tag(Int(mode.index))
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: selectedMode) { oldValue, newValue in
+                    sendModeUpdate(UInt8(newValue))
+                }
+
+                // Current mode display with name lookup
+                if let currentMode = bluetoothManager.currentMode {
+                    let modeName = bluetoothManager.availableModes
+                        .first(where: { $0.index == currentMode })?
+                        .name ?? "Mode \(currentMode)"
+
+                    Text("Device mode: \(modeName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding()
