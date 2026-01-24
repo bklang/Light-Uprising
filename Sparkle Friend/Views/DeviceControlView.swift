@@ -105,7 +105,7 @@ struct DeviceControlView: View {
 
     @ViewBuilder
     private var colorControlSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Text("Color")
                 .font(.headline)
 
@@ -123,7 +123,7 @@ struct DeviceControlView: View {
 
     @ViewBuilder
     private var modeControlSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Text("Mode")
                 .font(.headline)
 
