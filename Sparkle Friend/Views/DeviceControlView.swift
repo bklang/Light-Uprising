@@ -160,17 +160,6 @@ struct DeviceControlView: View {
                 .onChange(of: selectedMode) { oldValue, newValue in
                     sendModeUpdate(UInt8(newValue))
                 }
-
-                // Current mode display with name lookup
-                if let currentMode = bluetoothManager.currentMode {
-                    let modeName = bluetoothManager.availableModes
-                        .first(where: { $0.index == currentMode })?
-                        .name ?? "Mode \(currentMode)"
-
-                    Text("Device mode: \(modeName)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
         }
         .padding()
