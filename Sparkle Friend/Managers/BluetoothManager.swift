@@ -28,6 +28,8 @@ class BluetoothManager: NSObject, ObservableObject {
     private var deviceCache: [UUID: BLEDevice] = [:]
     private var characteristicCache: [CBUUID: CBCharacteristic] = [:]
     private var connectedPeripheral: CBPeripheral?
+    private var updateTimer: Timer?
+    private var cacheNeedsUpdate = false
 
     // Service and characteristic UUIDs
     private let serviceUUID = CBUUID(string: "C742E32D")
@@ -36,12 +38,17 @@ class BluetoothManager: NSObject, ObservableObject {
     private let colorListCharacteristicUUID = CBUUID(string: "4B2E9F17")
     private let colorPresetCharacteristicUUID = CBUUID(string: "15EC18FE")
 
-    // Stale device cleanup interval (30 seconds)
+    // Update intervals
     private let staleDeviceInterval: TimeInterval = 30
+    private let uiUpdateInterval: TimeInterval = 1.0 // Update UI every 1 second
 
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: .main)
+    }
+
+    deinit {
+        stopUpdateTimer()
     }
 
     // MARK: - Scanning
@@ -58,13 +65,43 @@ class BluetoothManager: NSObject, ObservableObject {
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
         )
         isScanning = true
+
+        // Start timer to periodically update the UI
+        startUpdateTimer()
+
         print("Started scanning for BLE devices")
     }
 
     func stopScanning() {
         centralManager.stopScan()
         isScanning = false
+
+        // Stop the update timer
+        stopUpdateTimer()
+
         print("Stopped scanning")
+    }
+
+    private func startUpdateTimer() {
+        // Invalidate existing timer if any
+        updateTimer?.invalidate()
+
+        // Create a new timer that fires every uiUpdateInterval seconds
+        updateTimer = Timer.scheduledTimer(withTimeInterval: uiUpdateInterval, repeats: true) { [weak self] _ in
+            self?.updateDeviceListIfNeeded()
+        }
+    }
+
+    private func stopUpdateTimer() {
+        updateTimer?.invalidate()
+        updateTimer = nil
+    }
+
+    private func updateDeviceListIfNeeded() {
+        guard cacheNeedsUpdate else { return }
+        cacheNeedsUpdate = false
+        updateDiscoveredDevicesList()
+        removeStaleDevices()
     }
 
     // MARK: - Connection Management
@@ -280,8 +317,6 @@ class BluetoothManager: NSObject, ObservableObject {
         for id in staleDeviceIDs {
             deviceCache.removeValue(forKey: id)
         }
-
-        updateDiscoveredDevicesList()
     }
 
     private func updateDiscoveredDevicesList() {
@@ -343,8 +378,8 @@ extension BluetoothManager: CBCentralManagerDelegate {
                 }
             }
 
-            self.updateDiscoveredDevicesList()
-            self.removeStaleDevices()
+            // Mark that the cache has been updated
+            self.cacheNeedsUpdate = true
         }
     }
 
