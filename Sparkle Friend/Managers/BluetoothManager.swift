@@ -19,6 +19,9 @@ class BluetoothManager: NSObject, ObservableObject {
     @Published var connectionError: String?
     @Published var availableModes: [LightMode] = []
     @Published var modeListError: String?
+    @Published var availableColors: [ColorPreset] = []
+    @Published var colorListError: String?
+    @Published var currentColorPresetIndex: UInt8?
 
     // Private properties
     private var centralManager: CBCentralManager!
@@ -30,6 +33,8 @@ class BluetoothManager: NSObject, ObservableObject {
     private let serviceUUID = CBUUID(string: "C742E32D")
     private let modeCharacteristicUUID = CBUUID(string: "0A93A285")
     private let modeListCharacteristicUUID = CBUUID(string: "7F8A3C91")
+    private let colorListCharacteristicUUID = CBUUID(string: "4B2E9F17")
+    private let colorPresetCharacteristicUUID = CBUUID(string: "15EC18FE")
 
     // Stale device cleanup interval (30 seconds)
     private let staleDeviceInterval: TimeInterval = 30
@@ -80,6 +85,9 @@ class BluetoothManager: NSObject, ObservableObject {
         currentMode = nil
         availableModes = []
         modeListError = nil
+        availableColors = []
+        colorListError = nil
+        currentColorPresetIndex = nil
         characteristicCache.removeAll()
     }
 
@@ -114,6 +122,50 @@ class BluetoothManager: NSObject, ObservableObject {
         modes.sort { $0.index < $1.index }
         print("Parsed \(modes.count) modes")
         return modes
+    }
+
+    // MARK: - Color List Parsing
+
+    private func parseColorList(from data: Data) -> [ColorPreset] {
+        // Convert to UTF-8 string
+        guard let colorString = String(data: data, encoding: .utf8) else {
+            print("ERROR: Failed to decode color list as UTF-8")
+            return []
+        }
+
+        print("Color list string: \(colorString)")
+
+        // Parse "index:HHSSVV,index:HHSSVV" format
+        // where HH=hue, SS=saturation, VV=value (all in hex)
+        let entries = colorString.split(separator: ",")
+        var colors: [ColorPreset] = []
+
+        for entry in entries {
+            let parts = entry.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2,
+                  let index = UInt8(parts[0].trimmingCharacters(in: .whitespaces)) else {
+                print("WARNING: Skipping malformed entry (bad index): \(entry)")
+                continue
+            }
+
+            let hsvHex = parts[1].trimmingCharacters(in: .whitespaces)
+
+            // Expect exactly 6 hex characters (HH SS VV)
+            guard hsvHex.count == 6,
+                  let hue = UInt8(hsvHex.prefix(2), radix: 16),
+                  let saturation = UInt8(hsvHex.dropFirst(2).prefix(2), radix: 16),
+                  let value = UInt8(hsvHex.suffix(2), radix: 16) else {
+                print("WARNING: Skipping malformed entry (bad HSV hex): \(entry)")
+                continue
+            }
+
+            colors.append(ColorPreset(index: index, hue: hue, saturation: saturation, value: value))
+            print("  Parsed color preset \(index): H=\(hue) S=\(saturation) V=\(value)")
+        }
+
+        colors.sort { $0.index < $1.index }
+        print("Parsed \(colors.count) colors")
+        return colors
     }
 
     // MARK: - Device Control
@@ -155,6 +207,26 @@ class BluetoothManager: NSObject, ObservableObject {
         let writeType: CBCharacteristicWriteType = modeCharacteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(data, for: modeCharacteristic, type: writeType)
         print("Set mode to: \(mode)")
+    }
+
+    func setColorPreset(_ presetIndex: UInt8, for device: BLEDevice) {
+        guard let peripheral = connectedPeripheral,
+              peripheral.identifier == device.id,
+              peripheral.state == .connected,
+              let colorPresetCharacteristic = characteristicCache[colorPresetCharacteristicUUID] else {
+            print("Cannot set color preset - device not connected or characteristic not found")
+            return
+        }
+
+        // Optimistically update UI immediately
+        DispatchQueue.main.async {
+            self.currentColorPresetIndex = presetIndex
+        }
+
+        let data = Data([presetIndex])
+        let writeType: CBCharacteristicWriteType = colorPresetCharacteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(data, for: colorPresetCharacteristic, type: writeType)
+        print("Set color preset to: \(presetIndex)")
     }
 
     func setBrightness(_ brightness: UInt8, for device: BLEDevice) {
@@ -267,7 +339,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
                 let newDevice = BLEDevice(peripheral: peripheral, color: color, rssi: rssiValue)
                 self.deviceCache[deviceID] = newDevice
                 if let data = serviceData[CBUUID(string: "C742E32D")], data.count >= 3 {
-                    print("Discovered device: \(newDevice.name) with color R:\(data[0]) G:\(data[1]) B:\(data[2])")
+                    print("Discovered device: \(newDevice.name) with color H:\(data[0]) S:\(data[1]) V:\(data[2])")
                 }
             }
 
@@ -314,6 +386,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
             self.connectedPeripheral = nil
             self.connectedDevice = nil
             self.currentMode = nil
+            self.currentColorPresetIndex = nil
             self.characteristicCache.removeAll()
         }
     }
@@ -356,7 +429,7 @@ extension BluetoothManager: CBPeripheralDelegate {
                 self.characteristicCache[characteristic.uuid] = characteristic
 
                 // If this is the mode characteristic, read its value
-                if characteristic.uuid == CBUUID(string: "0A93A285") {
+                if characteristic.uuid == self.modeCharacteristicUUID {
                     peripheral.readValue(for: characteristic)
                 }
 
@@ -367,6 +440,23 @@ extension BluetoothManager: CBPeripheralDelegate {
                     } else {
                         print("WARNING: Mode list characteristic not readable")
                         self.modeListError = "Mode list characteristic not readable"
+                    }
+                }
+
+                // If this is the color list characteristic, read its value
+                if characteristic.uuid == self.colorListCharacteristicUUID {
+                    if characteristic.properties.contains(.read) {
+                        peripheral.readValue(for: characteristic)
+                    } else {
+                        print("WARNING: Color list characteristic not readable")
+                        self.colorListError = "Color list characteristic not readable"
+                    }
+                }
+
+                // If this is the color preset characteristic, read its value
+                if characteristic.uuid == self.colorPresetCharacteristicUUID {
+                    if characteristic.properties.contains(.read) {
+                        peripheral.readValue(for: characteristic)
                     }
                 }
             }
@@ -405,6 +495,32 @@ extension BluetoothManager: CBPeripheralDelegate {
                     self.modeListError = nil
                 }
             }
+        }
+
+        // Handle color list characteristic read
+        if characteristic.uuid == colorListCharacteristicUUID,
+           let data = characteristic.value {
+            let colors = parseColorList(from: data)
+            DispatchQueue.main.async {
+                if colors.isEmpty {
+                    self.colorListError = "No valid color presets parsed from device"
+                    self.availableColors = []
+                } else {
+                    self.availableColors = colors
+                    self.colorListError = nil
+                }
+            }
+        }
+
+        // Handle color preset characteristic read
+        if characteristic.uuid == colorPresetCharacteristicUUID,
+           let data = characteristic.value,
+           data.count >= 1 {
+            let presetIndex = data[0]
+            DispatchQueue.main.async {
+                self.currentColorPresetIndex = presetIndex
+            }
+            print("Current color preset index: \(presetIndex)")
         }
     }
 

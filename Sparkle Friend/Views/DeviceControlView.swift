@@ -12,15 +12,14 @@ struct DeviceControlView: View {
     @EnvironmentObject var bluetoothManager: BluetoothManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedColor: Color
     @State private var brightness: Double = 100
     @State private var isPowerOn: Bool = true
     @State private var selectedMode: Int = 0
     @State private var isConnecting: Bool = true
+    @State private var selectedColorPresetIndex: UInt8?
 
     init(device: BLEDevice) {
         self.device = device
-        _selectedColor = State(initialValue: device.currentColor)
     }
 
     var body: some View {
@@ -32,8 +31,8 @@ struct DeviceControlView: View {
                 // Large color preview
                 colorPreviewView
 
-                // Color picker
-                colorControlSection
+                // Color preset selector
+                colorPresetSection
 
                 // Mode selector
                 modeControlSection
@@ -94,8 +93,14 @@ struct DeviceControlView: View {
     @ViewBuilder
     private var colorPreviewView: some View {
         VStack(spacing: 15) {
-            ColorIndicatorView(color: selectedColor, size: 120)
-                .shadow(radius: 10)
+            if let currentIndex = bluetoothManager.currentColorPresetIndex,
+               let preset = bluetoothManager.availableColors.first(where: { $0.index == currentIndex }) {
+                ColorIndicatorView(color: preset.color, size: 120)
+                    .shadow(radius: 10)
+            } else {
+                ColorIndicatorView(color: .gray, size: 120)
+                    .shadow(radius: 10)
+            }
 
             Text("Current Color")
                 .font(.caption)
@@ -104,17 +109,60 @@ struct DeviceControlView: View {
     }
 
     @ViewBuilder
-    private var colorControlSection: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("Color")
+    private var colorPresetSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Color Presets")
                 .font(.headline)
 
-            ColorPicker("Select Color", selection: $selectedColor, supportsOpacity: false)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .onChange(of: selectedColor) { oldValue, newValue in
-                    sendColorUpdate(newValue)
+            if let error = bluetoothManager.colorListError {
+                // Error state
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+            } else if bluetoothManager.availableColors.isEmpty {
+                // Loading state
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Loading color presets...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            } else {
+                // Display color preset buttons in a grid
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], spacing: 12) {
+                    ForEach(bluetoothManager.availableColors) { preset in
+                        Button(action: {
+                            sendColorPresetUpdate(preset.index)
+                        }) {
+                            VStack(spacing: 4) {
+                                Circle()
+                                    .fill(preset.color)
+                                    .frame(width: 50, height: 50)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(
+                                                bluetoothManager.currentColorPresetIndex == preset.index ? Color.blue : Color.clear,
+                                                lineWidth: 3
+                                            )
+                                    )
+                                Text("\(preset.index)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
         .padding()
         .background(Color(.systemGray6))
@@ -239,12 +287,17 @@ struct DeviceControlView: View {
             if let mode = bluetoothManager.currentMode {
                 selectedMode = Int(mode)
             }
+
+            // Read initial color preset from device
+            if let presetIndex = bluetoothManager.currentColorPresetIndex {
+                selectedColorPresetIndex = presetIndex
+            }
         }
     }
 
-    private func sendColorUpdate(_ color: Color) {
+    private func sendColorPresetUpdate(_ presetIndex: UInt8) {
         guard bluetoothManager.connectedDevice?.id == device.id else { return }
-        bluetoothManager.setColor(color, for: device)
+        bluetoothManager.setColorPreset(presetIndex, for: device)
     }
 
     private func sendModeUpdate(_ mode: UInt8) {
