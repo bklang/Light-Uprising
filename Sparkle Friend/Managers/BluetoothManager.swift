@@ -359,6 +359,11 @@ extension BluetoothManager: CBCentralManagerDelegate {
             return
         }
 
+        // Try to get device name from advertisement data, fallback to peripheral.name
+        let deviceName = (advertisementData[CBAdvertisementDataLocalNameKey] as? String)
+                      ?? peripheral.name
+                      ?? "Unknown Device"
+
         // Update or add device on main thread
         let deviceID = peripheral.identifier
         let rssiValue = RSSI.intValue
@@ -368,10 +373,14 @@ extension BluetoothManager: CBCentralManagerDelegate {
                 existingDevice.rssi = rssiValue
                 existingDevice.lastSeen = Date()
                 existingDevice.currentColor = color
+                // Update name if we now have a better one (not "Unknown Device")
+                if deviceName != "Unknown Device" && existingDevice.name == "Unknown Device" {
+                    existingDevice.name = deviceName
+                }
                 self.deviceCache[deviceID] = existingDevice
             } else {
                 // Add new device
-                let newDevice = BLEDevice(peripheral: peripheral, color: color, rssi: rssiValue)
+                let newDevice = BLEDevice(peripheral: peripheral, name: deviceName, color: color, rssi: rssiValue)
                 self.deviceCache[deviceID] = newDevice
                 if let data = serviceData[CBUUID(string: "C742E32D")], data.count >= 3 {
                     print("Discovered device: \(newDevice.name) with color H:\(data[0]) S:\(data[1]) V:\(data[2])")
