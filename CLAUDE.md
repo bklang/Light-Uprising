@@ -4,32 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Sparkle Friend is an iOS application for discovering and controlling Bluetooth Low Energy (BLE) light devices. The app scans for BLE lights advertising with a specific service UUID, displays them with their current color, and provides a full control interface for changing color, mode, brightness, and power state.
+Light Uprising is an iOS application for discovering and controlling Bluetooth Low Energy (BLE) light devices. The app scans for BLE lights advertising with a specific service UUID, displays them with their current color, and provides a full control interface for changing color, mode, brightness, and power state.
 
 ## Build and Test Commands
 
 ### Building the Application
 ```bash
 # Build for iOS Simulator
-xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15' build
+xcodebuild -project "Light Uprising.xcodeproj" -scheme "Light Uprising" -destination 'platform=iOS Simulator,name=iPhone 15' build
 
 # Build for iOS Device (requires connected device)
-xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS,name=YOUR_DEVICE_NAME' build
+xcodebuild -project "Light Uprising.xcodeproj" -scheme "Light Uprising" -destination 'platform=iOS,name=YOUR_DEVICE_NAME' build
 
 # Clean build
-xcodebuild -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" clean build
+xcodebuild -project "Light Uprising.xcodeproj" -scheme "Light Uprising" clean build
 ```
 
 ### Running Tests
 ```bash
 # Run all tests on iOS Simulator
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15'
+xcodebuild test -project "Light Uprising.xcodeproj" -scheme "Light Uprising" -destination 'platform=iOS Simulator,name=iPhone 15'
 
 # Run specific test target
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:Sparkle_FriendTests
+xcodebuild test -project "Light Uprising.xcodeproj" -scheme "Light Uprising" -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:Light_UprisingTests
 
 # Run UI tests
-xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:Sparkle_FriendUITests
+xcodebuild test -project "Light Uprising.xcodeproj" -scheme "Light Uprising" -destination 'platform=iOS Simulator,name=iPhone 15' -only-testing:Light_UprisingUITests
 ```
 
 ## Architecture
@@ -58,7 +58,7 @@ xcodebuild test -project "Sparkle Friend.xcodeproj" -scheme "Sparkle Friend" -de
 ### View Hierarchy
 
 ```
-Sparkle_FriendApp
+Light_UprisingApp
   └─ ContentView (NavigationStack)
        ├─ DeviceListView - Shows discovered devices
        │    └─ DeviceRowView - Individual device row with color indicator and RSSI
@@ -123,7 +123,7 @@ The app uses `DispatchQueue.main.async` extensively in CoreBluetooth delegate me
 ## Project Configuration
 
 - **Platform**: iOS only (iPhone and iPad)
-- **Bundle ID**: net.dashblue.Sparkle-Friend
+- **Bundle ID**: net.dashblue.Light-Uprising
 - **Swift Version**: 5.0
 - **Deployment Target**: iOS 17.0
 - **Development Team**: 73C2JK825V
