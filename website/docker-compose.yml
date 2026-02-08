@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  hello:
+    image: strm/helloworld-http
+    labels:
+        - "traefik.http.routers.hello.rule=Host(`www.lightuprising.org`)"
+        - "traefik.http.routers.hello.tls.certResolver=default"
+    networks:
+      - traefik_web
+networks:
+  traefik_web:
+    external: true

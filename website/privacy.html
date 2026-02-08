@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Light Uprising</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(to bottom, #000000, #0a0a1a);
+            color: #ffffff;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #ff4444, #ffaa00, #44ffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .last-updated {
+            color: #888899;
+            font-size: 0.9em;
+        }
+
+        .content {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            font-size: 1.8em;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #ffaa00, #44ffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        h2:first-child {
+            margin-top: 0;
+        }
+
+        p {
+            color: #ccccdd;
+            margin-bottom: 20px;
+            font-size: 1.05em;
+        }
+
+        ul, ol {
+            margin: 15px 0 25px 25px;
+            color: #ccccdd;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        strong {
+            color: #ffffff;
+        }
+
+        .highlight {
+            background: rgba(68, 255, 255, 0.1);
+            border-left: 3px solid #44ffff;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 5px;
+        }
+
+        .highlight p {
+            margin-bottom: 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666677;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        footer a {
+            color: #44ffff;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: #ffaa00;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #44ffff;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #ffaa00;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            .content {
+                padding: 25px;
+            }
+
+            h2 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: February 8, 2026</p>
+        </header>
+
+        <a href="index.html" class="back-link">← Back to Home</a>
+
+        <div class="content">
+            <div class="highlight">
+                <p><strong>Privacy Summary:</strong> Light Uprising does not collect, store, or transmit any personal data. All communication happens directly between your device and your Bluetooth lights. No cloud services, no analytics, no tracking.</p>
+            </div>
+
+            <h2>Introduction</h2>
+            <p>Light Uprising ("we," "our," or "the app") is committed to protecting your privacy. This Privacy Policy explains how we handle information in connection with your use of the Light Uprising iOS application.</p>
+
+            <h2>Information We Do Not Collect</h2>
+            <p>Light Uprising is designed with privacy as a core principle. We want to be clear about what we <strong>do not</strong> do:</p>
+            <ul>
+                <li><strong>No Personal Information:</strong> We do not collect names, email addresses, phone numbers, or any other personally identifiable information.</li>
+                <li><strong>No Usage Analytics:</strong> We do not track how you use the app, which features you access, or how often you use the app.</li>
+                <li><strong>No Location Data:</strong> While Bluetooth functionality may have location permissions on iOS, we do not access, collect, or store your location data.</li>
+                <li><strong>No Device Information:</strong> We do not collect information about your iOS device, model, or operating system version.</li>
+                <li><strong>No Third-Party Analytics:</strong> We do not use any third-party analytics services, tracking SDKs, or advertising networks.</li>
+                <li><strong>No Cloud Storage:</strong> We do not store any data on remote servers or in the cloud.</li>
+            </ul>
+
+            <h2>How the App Works</h2>
+            <p>Light Uprising uses Bluetooth Low Energy (BLE) to communicate directly with your smart lights:</p>
+            <ol>
+                <li>The app scans for nearby BLE devices advertising as compatible lights</li>
+                <li>When you connect to a light, communication happens directly between your iOS device and the light</li>
+                <li>Color changes, brightness adjustments, and mode selections are sent directly to your lights via Bluetooth</li>
+                <li>No data leaves your device except for the Bluetooth commands sent to your lights</li>
+            </ol>
+            <p>All processing happens locally on your device. There are no servers involved, no internet connection required (except to download the app), and no data transmission beyond direct Bluetooth communication with your lights.</p>
+
+            <h2>Bluetooth Permissions</h2>
+            <p>Light Uprising requires Bluetooth access to function. iOS requires apps to request permission to use Bluetooth, and on some iOS versions, this includes location permissions as a system requirement (even though we don't access location data).</p>
+            <p>The app uses Bluetooth solely to:</p>
+            <ul>
+                <li>Scan for compatible BLE light devices</li>
+                <li>Connect to lights you select</li>
+                <li>Send control commands (color, brightness, mode, power) to connected lights</li>
+            </ul>
+
+            <h2>Data Storage</h2>
+            <p>Light Uprising may store minimal data locally on your device, such as:</p>
+            <ul>
+                <li>App preferences and settings</li>
+                <li>Recently connected device names (stored only on your device)</li>
+            </ul>
+            <p>This data never leaves your device and can be deleted by removing the app.</p>
+
+            <h2>Third-Party Services</h2>
+            <p>Light Uprising does not integrate with any third-party services, SDKs, or APIs. The app is completely self-contained and operates independently.</p>
+
+            <h2>Children's Privacy</h2>
+            <p>Light Uprising does not collect any information from anyone, including children under the age of 13. The app is safe for users of all ages.</p>
+
+            <h2>Changes to This Privacy Policy</h2>
+            <p>We may update this Privacy Policy from time to time. Any changes will be posted on this page with an updated "Last Updated" date. We encourage you to review this Privacy Policy periodically for any changes.</p>
+
+            <h2>Contact Us</h2>
+            <p>If you have any questions about this Privacy Policy, please contact us:</p>
+            <ul>
+                <li>Email: privacy@dashblue.net</li>
+                <li>Website: <a href="index.html" style="color: #44ffff;">Light Uprising Home</a></li>
+            </ul>
+
+            <h2>Consent</h2>
+            <p>By using Light Uprising, you consent to this Privacy Policy. Given that we do not collect any personal information, your use of the app does not involve any data processing that would require additional consent under privacy regulations.</p>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Light Uprising. All rights reserved.</p>
+            <p><a href="index.html">Home</a></p>
+        </footer>
+    </div>
+</body>
+</html>
