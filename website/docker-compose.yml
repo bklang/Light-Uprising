@@ -1,10 +1,14 @@
-version: "3.9"
 services:
-  hello:
-    image: strm/helloworld-http
+  website:
+    image: lipanski/docker-static-website:latest
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/home/static
     labels:
-        - "traefik.http.routers.hello.rule=Host(`www.lightuprising.org`)"
-        - "traefik.http.routers.hello.tls.certResolver=default"
+        - "traefik.http.routers.website.rule=Host(`www.lightuprising.org`)"
+        - "traefik.http.routers.website.tls.certResolver=default"
     networks:
       - traefik_web
 networks:
