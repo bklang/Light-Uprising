@@ -101,7 +101,11 @@ Light_UprisingApp
   - Single byte value representing light mode (0=Solid, 1=Fade, 2=Flash, etc.)
   - Read on connection to display current mode
   - Write to change mode
-- **Color/Brightness/Power**: Discovered dynamically after connection
+- **Brightness Characteristic**: `9d4f2b60` (read/write)
+  - Single byte value, 0-255 (0 = off, 255 = full brightness)
+  - Read on connection to position the brightness slider
+  - Written on slider change, throttled to one write per 50ms with a trailing write of the final value
+- **Color/Power**: Discovered dynamically after connection
   - App searches for writable characteristics
   - Writes appropriate data based on characteristic properties
   - Uses `.writeWithoutResponse` or `.withResponse` based on characteristic

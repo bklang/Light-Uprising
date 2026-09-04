@@ -22,6 +22,8 @@ class BluetoothManager: NSObject, ObservableObject {
     @Published var availableColors: [ColorPreset] = []
     @Published var colorListError: String?
     @Published var currentColorPresetIndex: UInt8?
+    @Published var currentBrightness: UInt8?
+    @Published var brightnessError: String?
 
     // Private properties
     private var centralManager: CBCentralManager!
@@ -30,6 +32,9 @@ class BluetoothManager: NSObject, ObservableObject {
     private var connectedPeripheral: CBPeripheral?
     private var updateTimer: Timer?
     private var cacheNeedsUpdate = false
+    private var pendingBrightness: UInt8?
+    private var brightnessWriteTimer: Timer?
+    private var lastBrightnessWriteAt: Date?
 
     // Service and characteristic UUIDs
     private let serviceUUID = CBUUID(string: "C742E32D")
@@ -37,10 +42,12 @@ class BluetoothManager: NSObject, ObservableObject {
     private let modeListCharacteristicUUID = CBUUID(string: "7F8A3C91")
     private let colorListCharacteristicUUID = CBUUID(string: "4B2E9F17")
     private let colorPresetCharacteristicUUID = CBUUID(string: "15EC18FE")
+    private let brightnessCharacteristicUUID = CBUUID(string: "9D4F2B60")
 
     // Update intervals
     private let staleDeviceInterval: TimeInterval = 30
     private let uiUpdateInterval: TimeInterval = 1.0 // Update UI every 1 second
+    private let brightnessWriteInterval: TimeInterval = 0.05 // Throttle slider writes
 
     override init() {
         super.init()
@@ -49,6 +56,7 @@ class BluetoothManager: NSObject, ObservableObject {
 
     deinit {
         stopUpdateTimer()
+        brightnessWriteTimer?.invalidate()
     }
 
     // MARK: - Scanning
@@ -125,6 +133,7 @@ class BluetoothManager: NSObject, ObservableObject {
         availableColors = []
         colorListError = nil
         currentColorPresetIndex = nil
+        resetBrightnessState()
         characteristicCache.removeAll()
     }
 
@@ -269,21 +278,70 @@ class BluetoothManager: NSObject, ObservableObject {
     func setBrightness(_ brightness: UInt8, for device: BLEDevice) {
         guard let peripheral = connectedPeripheral,
               peripheral.identifier == device.id,
-              peripheral.state == .connected else {
-            print("Device not connected")
+              peripheral.state == .connected,
+              characteristicCache[brightnessCharacteristicUUID] != nil else {
+            print("Cannot set brightness - device not connected or characteristic not found")
+            return
+        }
+
+        // Optimistically update UI immediately
+        DispatchQueue.main.async {
+            self.currentBrightness = brightness
+        }
+
+        // Throttle writes so a slider drag doesn't flood the BLE write queue,
+        // but always write the value the user finally landed on.
+        let now = Date()
+        if let lastWrite = lastBrightnessWriteAt {
+            let elapsed = now.timeIntervalSince(lastWrite)
+            if elapsed < brightnessWriteInterval {
+                pendingBrightness = brightness
+                scheduleBrightnessFlush(after: brightnessWriteInterval - elapsed)
+                return
+            }
+        }
+
+        lastBrightnessWriteAt = now
+        writeBrightnessNow(brightness)
+    }
+
+    private func scheduleBrightnessFlush(after delay: TimeInterval) {
+        // An already-scheduled flush will pick up the newest pending value
+        guard brightnessWriteTimer == nil else { return }
+
+        brightnessWriteTimer = Timer.scheduledTimer(withTimeInterval: max(delay, 0), repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            self.brightnessWriteTimer = nil
+
+            guard let pending = self.pendingBrightness else { return }
+            self.pendingBrightness = nil
+            self.lastBrightnessWriteAt = Date()
+            self.writeBrightnessNow(pending)
+        }
+    }
+
+    private func writeBrightnessNow(_ brightness: UInt8) {
+        // Re-check state: a trailing flush can fire after a disconnect
+        guard let peripheral = connectedPeripheral,
+              peripheral.state == .connected,
+              let brightnessCharacteristic = characteristicCache[brightnessCharacteristicUUID] else {
+            print("Skipping brightness write - device no longer connected")
             return
         }
 
         let data = Data([brightness])
-        print("Setting brightness to: \(brightness)")
+        let writeType: CBCharacteristicWriteType = brightnessCharacteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        peripheral.writeValue(data, for: brightnessCharacteristic, type: writeType)
+        print("Set brightness to: \(brightness)")
+    }
 
-        // Look for a brightness characteristic
-        if let brightnessChar = characteristicCache.values.first(where: {
-            $0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)
-        }) {
-            let writeType: CBCharacteristicWriteType = brightnessChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-            peripheral.writeValue(data, for: brightnessChar, type: writeType)
-        }
+    private func resetBrightnessState() {
+        brightnessWriteTimer?.invalidate()
+        brightnessWriteTimer = nil
+        pendingBrightness = nil
+        lastBrightnessWriteAt = nil
+        currentBrightness = nil
+        brightnessError = nil
     }
 
     func setPowerState(_ on: Bool, for device: BLEDevice) {
@@ -431,6 +489,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
             self.connectedDevice = nil
             self.currentMode = nil
             self.currentColorPresetIndex = nil
+            self.resetBrightnessState()
             self.characteristicCache.removeAll()
         }
     }
@@ -503,6 +562,16 @@ extension BluetoothManager: CBPeripheralDelegate {
                         peripheral.readValue(for: characteristic)
                     }
                 }
+
+                // If this is the brightness characteristic, read its value
+                if characteristic.uuid == self.brightnessCharacteristicUUID {
+                    if characteristic.properties.contains(.read) {
+                        peripheral.readValue(for: characteristic)
+                    } else {
+                        print("WARNING: Brightness characteristic not readable")
+                        self.brightnessError = "Brightness characteristic not readable"
+                    }
+                }
             }
         }
     }
@@ -565,6 +634,18 @@ extension BluetoothManager: CBPeripheralDelegate {
                 self.currentColorPresetIndex = presetIndex
             }
             print("Current color preset index: \(presetIndex)")
+        }
+
+        // Handle brightness characteristic read
+        if characteristic.uuid == brightnessCharacteristicUUID,
+           let data = characteristic.value,
+           data.count >= 1 {
+            let brightnessValue = data[0]
+            DispatchQueue.main.async {
+                self.currentBrightness = brightnessValue
+                self.brightnessError = nil
+            }
+            print("Current brightness: \(brightnessValue)")
         }
     }
 

@@ -12,7 +12,7 @@ struct DeviceControlView: View {
     @EnvironmentObject var bluetoothManager: BluetoothManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var brightness: Double = 100
+    @State private var brightness: Double = 255
     @State private var isPowerOn: Bool = true
     @State private var selectedMode: Int = 0
     @State private var isConnecting: Bool = true
@@ -57,6 +57,11 @@ struct DeviceControlView: View {
         }
         .onDisappear {
             bluetoothManager.disconnect()
+        }
+        .onChange(of: bluetoothManager.currentBrightness) { _, newValue in
+            if let newValue {
+                brightness = Double(newValue)
+            }
         }
     }
 
@@ -222,14 +227,29 @@ struct DeviceControlView: View {
                 Text("Brightness")
                     .font(.headline)
                 Spacer()
-                Text("\(Int(brightness))%")
+                Text("\(Int((brightness / 255 * 100).rounded()))%")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
 
-            Slider(value: $brightness, in: 0...100, step: 1)
-                .onChange(of: brightness) { oldValue, newValue in
-                    sendBrightnessUpdate(UInt8(newValue * 2.55))
+            if let error = bluetoothManager.brightnessError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+            }
+
+            // Slider works in raw device units so values round-trip exactly
+            Slider(value: $brightness, in: 0...255, step: 1)
+                .disabled(bluetoothManager.brightnessError != nil)
+                .onChange(of: brightness) { _, newValue in
+                    // Skip values that came from the device, to avoid echoing them back
+                    let byte = UInt8(newValue.rounded())
+                    guard byte != bluetoothManager.currentBrightness else { return }
+                    sendBrightnessUpdate(byte)
                 }
         }
         .padding()
@@ -291,6 +311,11 @@ struct DeviceControlView: View {
             // Read initial color preset from device
             if let presetIndex = bluetoothManager.currentColorPresetIndex {
                 selectedColorPresetIndex = presetIndex
+            }
+
+            // Read initial brightness from device
+            if let deviceBrightness = bluetoothManager.currentBrightness {
+                brightness = Double(deviceBrightness)
             }
         }
     }
