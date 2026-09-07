@@ -216,30 +216,6 @@ class BluetoothManager: NSObject, ObservableObject {
 
     // MARK: - Device Control
 
-    func setColor(_ color: Color, for device: BLEDevice) {
-        guard let peripheral = connectedPeripheral,
-              peripheral.identifier == device.id,
-              peripheral.state == .connected else {
-            print("Device not connected")
-            return
-        }
-
-        let rgb = color.toRGBBytes()
-        let data = Data([rgb.red, rgb.green, rgb.blue])
-
-        // Try to find a color characteristic (we'll discover this dynamically)
-        // For now, we'll need to discover characteristics first
-        print("Setting color to R:\(rgb.red) G:\(rgb.green) B:\(rgb.blue)")
-
-        // Look for a writable characteristic to send color data
-        if let colorCharacteristic = characteristicCache.values.first(where: {
-            $0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)
-        }) {
-            let writeType: CBCharacteristicWriteType = colorCharacteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-            peripheral.writeValue(data, for: colorCharacteristic, type: writeType)
-        }
-    }
-
     func setMode(_ mode: UInt8, for device: BLEDevice) {
         guard let peripheral = connectedPeripheral,
               peripheral.identifier == device.id,
